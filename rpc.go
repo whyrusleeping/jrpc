@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 )
@@ -23,12 +24,14 @@ func (e Error) Error() string {
 
 type Response struct {
 	Result interface{} `json:"result"`
-	Error  *Error      `json:"error"`
+	Error  *Error      `json:"error,omitempty"`
 }
 
 type Request struct {
-	Method string      `json:"method"`
-	Params interface{} `json:"params"`
+	JsonRPC string      `json:"jsonrpc,omitempty"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params"`
+	Id      int         `json:"id"`
 }
 
 type Client struct {
@@ -57,6 +60,7 @@ func (c *Client) Do(obj *Request, out interface{}) error {
 	if err != nil {
 		return err
 	}
+	req.Header["Content-Type"] = []string{"application/json"}
 
 	// auth auth baby
 	if c.User != "" {
@@ -66,20 +70,19 @@ func (c *Client) Do(obj *Request, out interface{}) error {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		if strings.Contains(err.Error(), "connection refused") {
-			return fmt.Errorf("failed to connect to zcash daemon, is it running?")
+			return fmt.Errorf("failed to connect to daemon, is it running?")
 		}
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		var res Response
-		err := json.NewDecoder(resp.Body).Decode(&res)
+		data, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Println("error reading http body: ", err)
+			return err
 		}
 
-		return res.Error
+		return fmt.Errorf("%s: %s", resp.Status, string(data))
 	}
 
 	return json.NewDecoder(resp.Body).Decode(out)
