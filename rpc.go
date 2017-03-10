@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 	"strings"
 )
 
@@ -23,8 +24,36 @@ func (e Error) Error() string {
 }
 
 type Response struct {
-	Result interface{} `json:"result"`
-	Error  *Error      `json:"error,omitempty"`
+	Result     interface{} `json:"result"`
+	ResultType interface{} `json:"-"`
+	Error      *Error      `json:"error,omitempty"`
+}
+
+func (r *Response) UnmarshalJSON(b []byte) error {
+	i := struct {
+		Result *json.RawMessage
+		Error  *Error
+	}{}
+
+	err := json.Unmarshal(b, &i)
+	if err != nil {
+		return err
+	}
+
+	r.Error = i.Error
+
+	if r.ResultType == nil {
+		return json.Unmarshal(*i.Result, &r.Result)
+	}
+
+	val := reflect.New(reflect.TypeOf(r.ResultType)).Interface()
+	err = json.Unmarshal(*i.Result, val)
+	if err != nil {
+		return err
+	}
+
+	r.Result = val
+	return nil
 }
 
 type Request struct {
