@@ -42,7 +42,7 @@ func (r *Response) UnmarshalJSON(b []byte) error {
 
 	r.Error = i.Error
 
-	if r.ResultType == nil {
+	if r.ResultType == nil && i.Result != nil {
 		return json.Unmarshal(*i.Result, &r.Result)
 	}
 
