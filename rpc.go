@@ -29,7 +29,12 @@ type Response struct {
 	Error      *Error      `json:"error,omitempty"`
 }
 
-func (r *Response) UnmarshalJSON(b []byte) error {
+func (r *Response) UnmarshalJSON(b []byte) (outerr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			outerr = fmt.Errorf("jrpc recover: %s", r)
+		}
+	}()
 	i := struct {
 		Result *json.RawMessage
 		Error  *Error
@@ -46,7 +51,13 @@ func (r *Response) UnmarshalJSON(b []byte) error {
 		return json.Unmarshal(*i.Result, &r.Result)
 	}
 
-	val := reflect.New(reflect.TypeOf(r.ResultType)).Interface()
+	var val interface{}
+	if r.ResultType != nil {
+		val = reflect.New(reflect.TypeOf(r.ResultType)).Interface()
+	} else {
+		var i interface{}
+		val = &i
+	}
 	err = json.Unmarshal(*i.Result, val)
 	if err != nil {
 		return err
